@@ -10,23 +10,23 @@ int buffer[BUFFER_SIZE] = {0};  // 0 = empty, 1 = filled
 int in = 0;
 int out = 0;
 
-sem_t empty_slots; // شمارنده تعداد جفت‌مکان‌های خالی (حداقل دو لازم داریم)
-sem_t full_slots;  // شمارنده تعداد جفت‌مکان‌های پر
+sem_t empty_slots; // counts the number of available pairs of empty slots
+sem_t full_slots;  // counts the number of available pairs of full slots
 pthread_mutex_t mutex;
 
 void* producer(void* arg) {
     while (1) {
-        sem_wait(&empty_slots);  // منتظر فضای خالی جفتی
+        sem_wait(&empty_slots);  // wait until there is a pair of empty slots
         pthread_mutex_lock(&mutex);
 
-        // فرض: in و in+1 فضای خالی هستند
+        // assume in and in+1 are both empty
         buffer[in] = 1;
         buffer[(in + 1) % BUFFER_SIZE] = 1;
-        printf("✅ تولیدکننده یک جفت در [%d,%d] تولید کرد\n", in, (in + 1) % BUFFER_SIZE);
+        printf(" Producer created a pair at [%d, %d]\n", in, (in + 1) % BUFFER_SIZE);
         in = (in + 2) % BUFFER_SIZE;
 
         pthread_mutex_unlock(&mutex);
-        sem_post(&full_slots);  // افزایش جفت پر
+        sem_post(&full_slots);  // signal that a new pair is available
         sleep(rand() % 2);
     }
     return NULL;
@@ -34,17 +34,17 @@ void* producer(void* arg) {
 
 void* consumer(void* arg) {
     while (1) {
-        sem_wait(&full_slots);  // منتظر جفت پر
+        sem_wait(&full_slots);  // wait until there is a pair of filled slots
         pthread_mutex_lock(&mutex);
 
-        // فرض: out و out+1 پر هستند
+        // assume out and out+1 are both full
         buffer[out] = 0;
         buffer[(out + 1) % BUFFER_SIZE] = 0;
-        printf("🛒 مصرف‌کننده یک جفت از [%d,%d] برداشت\n", out, (out + 1) % BUFFER_SIZE);
+        printf(" Consumer took a pair from [%d, %d]\n", out, (out + 1) % BUFFER_SIZE);
         out = (out + 2) % BUFFER_SIZE;
 
         pthread_mutex_unlock(&mutex);
-        sem_post(&empty_slots);  // افزایش جفت خالی
+        sem_post(&empty_slots);  // signal that a new pair of empty slots is available
         sleep(rand() % 3);
     }
     return NULL;
@@ -53,7 +53,7 @@ void* consumer(void* arg) {
 int main() {
     pthread_t prod, cons;
 
-    sem_init(&empty_slots, 0, BUFFER_SIZE / 2);  // هر جفت دو مکان می‌گیره
+    sem_init(&empty_slots, 0, BUFFER_SIZE / 2);  // each pair occupies two slots
     sem_init(&full_slots, 0, 0);
     pthread_mutex_init(&mutex, NULL);
 
